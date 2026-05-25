@@ -1,6 +1,7 @@
 import os
 
 from pbo_core import read_pbo_archive
+from rag_builder_common import BuildError, run_hidden_text_subprocess
 from rag_build_pipeline import (
     build_all,
     copy_source_to_staging,
@@ -16,7 +17,6 @@ from rag_build_pipeline import (
     run_dayz_binarize,
     validate_binarized_wrp_outputs,
 )
-from rag_builder_common import BuildError
 
 
 def test_detect_addon_targets_skips_terrain_source_folder(tmp_path):
@@ -205,7 +205,7 @@ def test_run_dayz_binarize_uses_project_root_as_binpath(tmp_path, monkeypatch):
         captured["cwd"] = kwargs.get("cwd")
         return Result()
 
-    monkeypatch.setattr("rag_build_pipeline.subprocess.run", fake_run)
+    monkeypatch.setattr("rag_builder_common.subprocess.run", fake_run)
 
     addon_scan = [str(tmp_path / "P"), str(tmp_path / "objects")]
     run_dayz_binarize(str(source), str(output), str(binarize_exe), str(tmp_path / "P"), str(temp), 1, "", lambda _message: None, "world", addon_scan)
@@ -242,6 +242,26 @@ def test_parse_steam_libraryfolders_finds_non_c_drive_libraries():
 
     assert r"E:\SteamLibrary" in folders
     assert r"F:\Games\Steam" in folders
+
+
+def test_hidden_text_subprocess_replaces_undecodable_output(monkeypatch):
+    class Result:
+        returncode = 0
+        stdout = "tool output with replacement"
+
+    captured = {}
+
+    def fake_run(cmd, **kwargs):
+        captured.update(kwargs)
+        return Result()
+
+    monkeypatch.setattr("rag_builder_common.subprocess.run", fake_run)
+
+    result = run_hidden_text_subprocess(["tool.exe"])
+
+    assert result.stdout == "tool output with replacement"
+    assert captured["errors"] == "replace"
+    assert captured["text"] is True
 
 
 def test_suspicious_tiny_binarized_wrp_fails_build(tmp_path):

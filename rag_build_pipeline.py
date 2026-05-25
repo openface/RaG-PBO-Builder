@@ -4,7 +4,6 @@ import json
 import os
 import re
 import shutil
-import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
@@ -15,13 +14,12 @@ from rag_builder_common import (
     COPY_CHUNK_SIZE,
     WIN_SEP,
     format_duration,
-    get_hidden_startupinfo,
     get_pbo_prefix,
     get_safe_temp_name,
-    get_subprocess_creationflags,
     normalize_working_dir,
     parse_exclude_patterns,
     read_pbo_prefix_file,
+    run_hidden_text_subprocess,
     should_skip_dir,
     should_skip_file,
     source_file_should_be_staged,
@@ -260,15 +258,7 @@ def get_project_prefix_path(project_root, prefix):
 
 def create_directory_junction(link_path, target_path, cwd):
     if os.name == "nt":
-        result = subprocess.run(
-            ["cmd", "/c", "mklink", "/J", link_path, target_path],
-            cwd=cwd if os.path.isdir(cwd) else None,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-            creationflags=get_subprocess_creationflags(),
-            startupinfo=get_hidden_startupinfo(),
-        )
+        result = run_hidden_text_subprocess(["cmd", "/c", "mklink", "/J", link_path, target_path], cwd=cwd if os.path.isdir(cwd) else None)
         return result.returncode == 0, result.stdout.strip()
 
     try:
@@ -891,7 +881,7 @@ def run_dssignfile(dssignfile_exe, private_key, pbo_path, log):
         log(f"  PBO:         {work_pbo.name}")
         log(f"  Key:         {work_key.name}")
         log(f"  Work folder: {work_dir}")
-        result = subprocess.run(cmd, cwd=str(work_dir), text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, creationflags=get_subprocess_creationflags(), startupinfo=get_hidden_startupinfo())
+        result = run_hidden_text_subprocess(cmd, cwd=str(work_dir))
         if result.stdout:
             for line in result.stdout.splitlines():
                 log(line)
@@ -1487,7 +1477,7 @@ def run_dayz_binarize(source_dir, binarized_output_dir, binarize_exe, project_ro
         log(f"    - {normalize_project_root_arg(addon_folder)}")
     log(f"  Texture temp: {texture_temp_dir}")
     log("")
-    result = subprocess.run(cmd, cwd=working_dir if os.path.isdir(working_dir) else None, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, creationflags=get_subprocess_creationflags(), startupinfo=get_hidden_startupinfo())
+    result = run_hidden_text_subprocess(cmd, cwd=working_dir if os.path.isdir(working_dir) else None)
     output_lines = result.stdout.splitlines() if result.stdout else []
     if output_lines:
         for line in output_lines:
@@ -1528,7 +1518,7 @@ def run_cfgconvert_to_bin(staging_dir, cfgconvert_exe, log, extra_patterns=None)
         cmd = [cfgconvert_exe, "-bin", "-dst", config_bin, config_cpp]
         log("")
         log(f"Converting: {rel_config} -> {rel_bin}")
-        result = subprocess.run(cmd, cwd=config_dir, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, creationflags=get_subprocess_creationflags(), startupinfo=get_hidden_startupinfo())
+        result = run_hidden_text_subprocess(cmd, cwd=config_dir)
         output_lines = result.stdout.splitlines() if result.stdout else []
 
         if output_lines:
@@ -1617,7 +1607,7 @@ def run_imagetopaa_to_paa(imagetopaa_exe, source_file, target_paa, log):
         os.remove(temp_paa)
 
     cmd = [imagetopaa_exe, source_file, temp_paa]
-    result = subprocess.run(cmd, cwd=os.path.dirname(source_file), text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, creationflags=get_subprocess_creationflags(), startupinfo=get_hidden_startupinfo())
+    result = run_hidden_text_subprocess(cmd, cwd=os.path.dirname(source_file))
     output = result.stdout or ""
 
     if output:

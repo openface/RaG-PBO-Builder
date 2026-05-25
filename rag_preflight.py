@@ -1,7 +1,6 @@
 import json
 import os
 import re
-import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
@@ -9,12 +8,11 @@ from pathlib import Path
 from rag_builder_common import (
     WIN_SEP,
     format_duration,
-    get_hidden_startupinfo,
     get_pbo_prefix,
     get_safe_temp_name,
-    get_subprocess_creationflags,
     normalize_working_dir,
     parse_exclude_patterns,
+    run_hidden_text_subprocess,
     should_skip_dir,
     should_skip_file,
 )
@@ -403,15 +401,7 @@ def preflight_check_config_cpp(config_cpp, cfgconvert_exe, temp_root, addon_name
         os.remove(output_bin)
 
     cmd = [cfgconvert_exe, "-bin", "-dst", output_bin, config_cpp]
-    completed = subprocess.run(
-        cmd,
-        cwd=os.path.dirname(config_cpp),
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        creationflags=get_subprocess_creationflags(),
-        startupinfo=get_hidden_startupinfo(),
-    )
+    completed = run_hidden_text_subprocess(cmd, cwd=os.path.dirname(config_cpp))
 
     if completed.returncode != 0 or not os.path.isfile(output_bin):
         reason = f"exit code {completed.returncode}" if completed.returncode != 0 else "config.bin was not produced"

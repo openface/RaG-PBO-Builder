@@ -1,4 +1,5 @@
 import fnmatch
+import locale
 import os
 import subprocess
 
@@ -71,6 +72,24 @@ def get_hidden_startupinfo():
     startupinfo.dwFlags |= subprocess.STARTF_USESHOWWINDOW
     startupinfo.wShowWindow = 0
     return startupinfo
+
+
+def get_subprocess_text_encoding():
+    return locale.getpreferredencoding(False) or "utf-8"
+
+
+def run_hidden_text_subprocess(cmd, cwd=None):
+    return subprocess.run(
+        cmd,
+        cwd=cwd,
+        text=True,
+        encoding=get_subprocess_text_encoding(),
+        errors="replace",
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+        creationflags=get_subprocess_creationflags(),
+        startupinfo=get_hidden_startupinfo(),
+    )
 
 
 def normalize_working_dir(project_root):
