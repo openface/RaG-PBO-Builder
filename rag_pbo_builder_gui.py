@@ -462,6 +462,7 @@ class RaGPboBuilderApp(tk.Tk):
         self.about_button = self._make_header_button(right, "About", self.open_about_window)
         self.licence_button = self._make_header_button(right, "Licence", self.open_licence_window)
         self.options_button = self._make_header_button(right, "Options", self.open_options_window)
+        self.update_check_button = self._make_update_header_button(right, "Check for Update", self.start_update_check)
 
         settings = ttk.LabelFrame(outer, text="Build settings", padding=10)
         settings.pack(fill="x", pady=(0, 10))
@@ -538,7 +539,6 @@ class RaGPboBuilderApp(tk.Tk):
         self.clear_cache_button = self._make_action_button(secondary, "Clear build cache", self.clear_build_cache_from_ui)
         self.open_logs_button = self._make_action_button(secondary, "Open logs", self.open_logs_folder)
         self.latest_log_button = self._make_action_button(secondary, "Latest log", self.open_latest_log)
-        self.update_check_button = self._make_action_button(secondary, "Check for Update", self.start_update_check, tooltip="Check GitHub releases for a newer RaG PBO Builder version.")
 
         filter_frame = ttk.Frame(secondary, style="Card.TFrame")
         filter_frame.pack(side="right")
@@ -572,6 +572,13 @@ class RaGPboBuilderApp(tk.Tk):
         button = tk.Button(parent, text=text, command=command, bg=GRAPHITE_CARD_SOFT, fg=GRAPHITE_TEXT, activebackground=GRAPHITE_BORDER, activeforeground=GRAPHITE_TEXT, relief="flat", borderwidth=0, padx=12, pady=6, font=("Segoe UI", 9), cursor="hand2")
         button.pack(side="right", padx=(0, 8) if text != "About" else 0)
         self._attach_button_hover(button, GRAPHITE_CARD_SOFT, GRAPHITE_BORDER, GRAPHITE_BORDER)
+        return button
+
+    def _make_update_header_button(self, parent, text, command):
+        button = tk.Button(parent, text=text, command=command, bg=GRAPHITE_SUCCESS_DARK, fg="#ffffff", activebackground=GRAPHITE_SUCCESS, activeforeground="#ffffff", relief="flat", borderwidth=0, padx=12, pady=6, font=("Segoe UI", 9, "bold"), cursor="hand2")
+        button.pack(side="right", padx=(0, 8))
+        self._attach_button_hover(button, GRAPHITE_SUCCESS_DARK, GRAPHITE_SUCCESS, GRAPHITE_SUCCESS)
+        add_tooltip(button, "Check GitHub releases for a newer RaG PBO Builder version.")
         return button
 
     def _attach_button_hover(self, button, normal_bg, hover_bg, pressed_bg=None):
