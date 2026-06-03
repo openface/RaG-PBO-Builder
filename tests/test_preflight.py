@@ -337,3 +337,63 @@ class DuplicateThing
     assert "SetActions() does not call super.SetActions()" not in joined_logs
     assert "Modded class should not declare a base class" not in joined_logs
     assert "Unclosed '{' in script file" not in joined_logs
+
+
+def test_preflight_ignores_dynamic_script_asset_suffixes(tmp_path):
+    addon = tmp_path / "DynamicScriptRefs"
+    addon.mkdir()
+    write_valid_config(addon / "config.cpp")
+    (addon / "scripts.c").write_text(
+        r"""
+class DynamicScriptRefs
+{
+    void BuildPath(string baseName)
+    {
+        string materialPath = baseName + "_rvmatname.rvmat";
+    }
+};
+""",
+        encoding="utf-8",
+    )
+
+    logs = []
+    result = run_preflight_for_targets(
+        base_preflight_settings(tmp_path),
+        [("DynamicScriptRefs", str(addon))],
+        logs.append,
+    )
+
+    joined_logs = "\n".join(logs)
+
+    assert result.errors == 0
+    assert "_rvmatname.rvmat" not in joined_logs
+
+
+def test_preflight_summarizes_terrain_layer_source_texture_spam(tmp_path):
+    addon = tmp_path / "LayerSourceTextures"
+    layers = addon / "data" / "layers"
+    layers.mkdir(parents=True)
+    write_valid_config(addon / "config.cpp")
+
+    for index in range(12):
+        texture_name = f"layer_{index:03d}.png"
+        (layers / texture_name).write_bytes(b"png")
+        (layers / f"material_{index:03d}.rvmat").write_text(
+            f'texture="LayerSourceTextures\\data\\layers\\{texture_name}";\n',
+            encoding="utf-8",
+        )
+
+    logs = []
+    result = run_preflight_for_targets(
+        base_preflight_settings(tmp_path),
+        [("LayerSourceTextures", str(addon))],
+        logs.append,
+    )
+
+    joined_logs = "\n".join(logs)
+
+    assert result.errors == 0
+    assert "Terrain layer RVMATs reference source texture formats instead of .paa: 12 reference(s)" in joined_logs
+    assert "Terrain layer source textures have no matching .paa: 12 file(s)" in joined_logs
+    assert joined_logs.count("RVMAT references a source texture format instead of .paa") == 0
+    assert joined_logs.count("Source texture exists without matching .paa: data\\layers") == 0

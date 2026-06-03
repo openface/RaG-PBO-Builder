@@ -126,6 +126,8 @@ class PreflightResult:
         self.events = []
         self.report_txt = ""
         self.report_json = ""
+        self.terrain_layer_source_texture_refs = (0, [])
+        self.terrain_layer_source_textures_without_paa = (0, [])
 
     def add_event(self, severity, message):
         self.events.append({
@@ -260,6 +262,62 @@ def format_source_location(source_file, addon_source_dir, line_number=0):
         return f"{rel_file}: line {line_number}"
 
     return rel_file
+
+
+def get_previous_nonspace_char(content, index):
+    pos = index - 1
+    while pos >= 0 and content[pos].isspace():
+        pos -= 1
+    return content[pos] if pos >= 0 else ""
+
+
+def get_next_nonspace_char(content, index):
+    pos = index
+    while pos < len(content) and content[pos].isspace():
+        pos += 1
+    return content[pos] if pos < len(content) else ""
+
+
+def is_dynamic_script_reference(match, content):
+    return get_previous_nonspace_char(content, match.start()) == "+" or get_next_nonspace_char(content, match.end()) == "+"
+
+
+def is_terrain_layer_relative_path(relative_path):
+    parts = [part for part in normalize_reference_path(relative_path).lower().split(WIN_SEP) if part]
+    return "layers" in parts
+
+
+def record_limited_sample(bucket, sample, limit=8):
+    count, samples = bucket
+    if len(samples) < limit:
+        samples.append(sample)
+    return count + 1, samples
+
+
+def flush_terrain_layer_source_texture_warnings(addon_name, result, log):
+    refs_count, refs_samples = result.terrain_layer_source_texture_refs
+    missing_count, missing_samples = result.terrain_layer_source_textures_without_paa
+
+    if refs_count:
+        examples = "; ".join(refs_samples)
+        result.warning(
+            log,
+            f"Terrain layer RVMATs reference source texture formats instead of .paa: {refs_count} reference(s) in {addon_name}. "
+            "This is commonly caused by TerrainBuilder's 'Generate ASCII debug RVMATs' option. Regenerate layers without that option so final layer RVMATs use .paa texture paths. "
+            f"Examples: {examples}",
+        )
+
+    if missing_count:
+        examples = "; ".join(missing_samples)
+        result.warning(
+            log,
+            f"Terrain layer source textures have no matching .paa: {missing_count} file(s) in {addon_name}. "
+            "For release packing, regenerate TerrainBuilder layers without ASCII debug RVMATs or use Update PAA to create the missing .paa files before packing. "
+            f"Examples: {examples}",
+        )
+
+    result.terrain_layer_source_texture_refs = (0, [])
+    result.terrain_layer_source_textures_without_paa = (0, [])
 
 
 def report_reference_status(reference, source_file, addon_source_dir, project_root, extra_patterns, result, log, severity="error", context="referenced file", line_number=0):
@@ -872,6 +930,9 @@ def preflight_scan_references(file_path, addon_source_dir, project_root, extra_p
         line_start = scan_content.rfind("\n", 0, match.start()) + 1
         line_prefix = scan_content[line_start:match.start()].strip().lower()
 
+        if ext == ".c" and is_dynamic_script_reference(match, scan_content):
+            continue
+
         # Config includes are build-time preprocessor inputs. They may be
         # excluded from the final PBO while still being staged for Binarize
         # and CfgConvert, so do not treat them as packed runtime references.
@@ -1108,6 +1169,12 @@ def preflight_scan_rvmat_textures(file_path, content, addon_source_dir, project_
         ext = os.path.splitext(ref)[1].lower()
 
         if ext in SOURCE_TEXTURE_EXTENSIONS:
+            if is_terrain_layer_relative_path(rel_file):
+                result.terrain_layer_source_texture_refs = record_limited_sample(
+                    result.terrain_layer_source_texture_refs,
+                    f"{source_location} -> {ref}",
+                )
+                continue
             result.warning(log, f"RVMAT references a source texture format instead of .paa in {source_location}: {ref}")
 
         report_reference_status(ref, file_path, addon_source_dir, project_root, extra_patterns, result, log, "error", "RVMAT texture", line_number)
@@ -1186,6 +1253,12 @@ def preflight_scan_texture_freshness(addon_source_dir, extra_patterns, result, l
                 continue
 
             if not paa_file:
+                if is_terrain_layer_relative_path(rel_source):
+                    result.terrain_layer_source_textures_without_paa = record_limited_sample(
+                        result.terrain_layer_source_textures_without_paa,
+                        rel_source,
+                    )
+                    continue
                 result.warning(log, f"Source texture exists without matching .paa: {rel_source}")
                 continue
 
@@ -2264,6 +2337,8 @@ def run_preflight_for_targets(settings, targets, log, progress_callback=None):
                     preflight_scan_references(full, addon_source_dir, project_root, extra_patterns, result, log, script_class_definitions, preflight_checks["script_checks"])
                 elif ext == ".p3d" and preflight_checks["p3d_internal"]:
                     preflight_scan_p3d_internal_references(full, addon_source_dir, project_root, extra_patterns, result, log)
+
+        flush_terrain_layer_source_texture_warnings(addon_name, result, log)
 
         if preflight_checks["script_checks"]:
             preflight_scan_duplicate_script_classes(addon_name, script_class_definitions, result, log)

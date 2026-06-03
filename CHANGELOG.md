@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.3 Beta
+
+- Ignored dynamically concatenated script asset path fragments during reference preflight checks, avoiding false errors for runtime-built paths such as `name + "_rvmatname.rvmat"`.
+- Summarized TerrainBuilder layer RVMAT/source-texture `.png/.tga/.psd` warnings into one TerrainBuilder-focused warning instead of flooding logs with thousands of repeated entries.
+
 ## 0.8.2 Beta
 
 - Added a manual Check for Update button that compares the installed version with the newest GitHub release, including beta prereleases.
